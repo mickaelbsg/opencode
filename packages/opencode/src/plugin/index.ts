@@ -32,7 +32,7 @@ import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstallationChannel } from "@opencode-ai/core/installation/version"
-import { HindsightMemory } from "./hindsight"
+import { HindsightMemory } from "@opencode-ai/hindsight-plugin"
 
 type State = {
   hooks: Hooks[]

@@ -85,6 +85,7 @@
     "@octokit/rest": "catalog:",
     "@openauthjs/openauth": "catalog:",
     "@opencode-ai/codemode": "workspace:*",
+    "@opencode-ai/hindsight-plugin": "workspace:*",
     "@opencode-ai/llm": "workspace:*",
     "@opencode-ai/plugin": "workspace:*",
     "@opencode-ai/protocol": "workspace:*",
