@@ -25,7 +25,7 @@ const suggestionPattern = /(?:<!--\s*)?MEMORY_SUGGESTION\s*\n([\s\S]*?)\nEND_MEM
 const MAX_CONTEXT_CHARS = 12000
 const MAX_FILE_CHARS = 64000
 const secretPatterns = [
-  /\b(?:api[_-]?key|token|password|senha|secret|segredo)\b\s*(?::|=|is|é|e)\s*\S+/i,
+  /\b(?:api[_-]?key|token|password|senha|secret|segredo)\b\s*(?:(?::|=|is|é|e)\s*)?[A-Za-z0-9._~+/=-]{12,}/i,
   /\bauthorization\b\s*(?::|=)?\s*bearer\s+\S+/i,
   /\bbearer\s+[A-Za-z0-9._~+/=-]{12,}/i,
   /\bsk-[A-Za-z0-9_-]{16,}/i,
@@ -159,7 +159,7 @@ function normalizeText(value: string) {
 export function removalQuery(text: string) {
   return normalizeText(text)
     .replace(/\b(remova|remover|apague|apagar|exclua|excluir|corrija|corrigir)\b/g, " ")
-    .replace(/\b(essa|esse|isso|a|o|ultima|ultimo|minha|meu|memoria|anotacao|registro|que|esta|errado)\b/g, " ")
+    .replace(/\b(essa|esse|isso|a|o|ultima|ultimo|minha|meu|memoria|anotacao|registro|que|esta|errado|sobre)\b/g, " ")
     .replace(/[^a-z0-9_-]+/g, " ")
     .trim()
 }
