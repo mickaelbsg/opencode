@@ -1,8 +1,18 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, test } from "bun:test"
-import { appendMemory, isRemovalRequest, loadMemoryFiles, memoryPaths, removeLatestMemory } from "../src/index"
+import { afterEach, expect, test } from "bun:test"
+import {
+  appendMemory,
+  containsSecret,
+  isRemovalRequest,
+  loadMemoryFiles,
+  memoryPaths,
+  parseSuggestion,
+  removalQuery,
+  removeLatestMemory,
+  stripSuggestion,
+} from "../src/index"
 
 const cleanup: string[] = []
 
@@ -39,20 +49,39 @@ test("writes categorized memory and loads it into context", async () => {
   expect(await readFile(saved.path, "utf8")).toContain("## ")
 })
 
-test("removes only the latest matching entry", async () => {
+test("removes only the latest contextually matching entry", async () => {
   const { home, project } = await fixture()
-  const first = { category: "decisions" as const, title: "First", problem: "", solution: "", lesson: "Keep the API small." }
-  const second = { ...first, title: "Second", lesson: "Validate the public boundary." }
+  const first = { category: "decisions" as const, title: "API", problem: "", solution: "", lesson: "Keep the API small." }
+  const second = { category: "troubleshooting" as const, title: "Auth", problem: "", solution: "", lesson: "Validate the authorization boundary." }
   await appendMemory(project, first, home)
   await appendMemory(project, second, home)
-  const removed = await removeLatestMemory(project, "Validate the public boundary", home)
-  expect(removed?.title).toContain("Second")
+  const removed = await removeLatestMemory(project, "remova a memória sobre authorization boundary", home)
+  expect(removed?.title).toContain("Auth")
   expect(await loadMemoryFiles(project, home)).not.toContain(second.lesson)
   expect(await loadMemoryFiles(project, home)).toContain(first.lesson)
 })
 
-test("recognizes natural-language removal and correction", () => {
+test("normalizes natural-language removal queries", () => {
+  expect(removalQuery("Remova essa memória sobre autenticação")).toBe("sobre autenticacao")
   expect(isRemovalRequest("remova essa memória")).toBe(true)
   expect(isRemovalRequest("isso está errado, corrija")).toBe(true)
   expect(isRemovalRequest("continue a implementação")).toBe(false)
+})
+
+test("rejects common secret formats", () => {
+  expect(containsSecret("senha é supersecreta")).toBe(true)
+  expect(containsSecret("use o token abcdefghijklmnop")).toBe(true)
+  expect(containsSecret("Authorization: Bearer abcdefghijklmnop")).toBe(true)
+  expect(containsSecret("A autenticação deve ocorrer antes da autorização.")).toBe(false)
+})
+
+test("parses a hidden suggestion and strips it from visible text", () => {
+  const text = `Concluído.\n<!-- MEMORY_SUGGESTION\ncategory: decisions\ntitle: API pequena\nproblem: excesso de superfície\nsolution: reduzir endpoints\nlesson: mantenha a API pequena\nEND_MEMORY_SUGGESTION -->`
+  expect(parseSuggestion(text)?.lesson).toBe("mantenha a API pequena")
+  expect(stripSuggestion(text)).toBe("Concluído.")
+})
+
+test("does not parse suggestions containing secrets", () => {
+  const text = `<!-- MEMORY_SUGGESTION\ncategory: infos\ntitle: Credencial\nproblem:\nsolution:\nlesson: token = abcdefghijklmnop\nEND_MEMORY_SUGGESTION -->`
+  expect(parseSuggestion(text)).toBeUndefined()
 })
