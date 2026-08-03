@@ -1,5 +1,5 @@
 import type { Plugin } from "@opencode-ai/plugin"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export const categories = [
@@ -12,10 +12,25 @@ export const categories = [
 ] as const
 
 type Category = (typeof categories)[number]
+type Suggestion = {
+  category: Category
+  title: string
+  problem: string
+  solution: string
+  lesson: string
+}
 
 const projectCategories = new Set<Category>(["decisions", "troubleshooting", "contexto", "infos"])
-const suggestionPattern = /MEMORY_SUGGESTION\s*\n([\s\S]*?)\nEND_MEMORY_SUGGESTION/i
-const secretPattern = /(api[_-]?key|token|password|secret|bearer)\s*[:=]/i
+const suggestionPattern = /(?:<!--\s*)?MEMORY_SUGGESTION\s*\n([\s\S]*?)\nEND_MEMORY_SUGGESTION(?:\s*-->)?/i
+const MAX_CONTEXT_CHARS = 12000
+const MAX_FILE_CHARS = 64000
+const secretPatterns = [
+  /\b(?:api[_-]?key|token|password|senha|secret|segredo)\b\s*(?:(?::|=|is|é|e)\s*)?[A-Za-z0-9._~+/=-]{12,}/i,
+  /\bauthorization\b\s*(?::|=)?\s*bearer\s+\S+/i,
+  /\bbearer\s+[A-Za-z0-9._~+/=-]{12,}/i,
+  /\bsk-[A-Za-z0-9_-]{16,}/i,
+  /\bgh[pousr]_[A-Za-z0-9_]{16,}/i,
+]
 
 export function memoryPaths(directory: string, home = process.env.HOME || process.env.USERPROFILE || "") {
   return {
@@ -34,20 +49,28 @@ function normalizeCategory(value: string): Category | undefined {
   return categories.includes(category) ? category : undefined
 }
 
-export function parseSuggestion(text: string) {
+export function containsSecret(text: string) {
+  return secretPatterns.some((pattern) => pattern.test(text))
+}
+
+export function stripSuggestion(text: string) {
+  return text.replace(suggestionPattern, "").trimEnd()
+}
+
+export function parseSuggestion(text: string): Suggestion | undefined {
   const match = text.match(suggestionPattern)
   if (!match) return
 
   const fields = Object.fromEntries(
     match[1]
       .split("\n")
-      .map((line) => line.match(/^([a-z_]+):\s*(.+)$/i))
+      .map((line) => line.match(/^([a-z_]+):\s*(.*)$/i))
       .filter((line): line is RegExpMatchArray => Boolean(line))
       .map((line) => [line[1], line[2].trim()]),
   )
   const category = normalizeCategory(fields.category || "")
   if (!category || !fields.title || !fields.lesson) return
-  if (secretPattern.test(Object.values(fields).join(" "))) return
+  if (containsSecret(Object.values(fields).join(" "))) return
 
   return {
     category,
@@ -58,7 +81,7 @@ export function parseSuggestion(text: string) {
   }
 }
 
-function entryText(suggestion: NonNullable<ReturnType<typeof parseSuggestion>>, projectName: string) {
+function entryText(suggestion: Suggestion, projectName: string) {
   return [
     `## ${new Date().toISOString().slice(0, 10)} - ${suggestion.title}`,
     "",
@@ -70,50 +93,94 @@ function entryText(suggestion: NonNullable<ReturnType<typeof parseSuggestion>>, 
   ].filter(Boolean).join("\n")
 }
 
-export async function appendMemory(
-  directory: string,
-  suggestion: NonNullable<ReturnType<typeof parseSuggestion>>,
-  home?: string,
-) {
+function entries(content: string) {
+  const matches = [...content.matchAll(/^## .+$/gm)]
+  return matches.map((heading, index) => ({
+    title: heading[0],
+    start: heading.index || 0,
+    end: matches[index + 1]?.index ?? content.length,
+    text: content.slice(heading.index || 0, matches[index + 1]?.index ?? content.length).trim(),
+  }))
+}
+
+function compactContent(content: string, limit = MAX_FILE_CHARS) {
+  if (content.length <= limit) return content
+  const recent = entries(content).reverse()
+  const kept: string[] = []
+  let size = 0
+  for (const entry of recent) {
+    if (size + entry.text.length + 2 > limit) break
+    kept.unshift(entry.text)
+    size += entry.text.length + 2
+  }
+  return kept.length ? `${kept.join("\n\n")}\n` : `${content.slice(-limit)}\n`
+}
+
+export async function appendMemory(directory: string, suggestion: Suggestion, home?: string) {
   const paths = memoryPaths(directory, home)
   const path = fileFor(suggestion.category, paths)
   await mkdir(join(path, ".."), { recursive: true })
   const current = await readFile(path, "utf8").catch(() => "")
   const entry = entryText(suggestion, directory.split(/[\\/]/).filter(Boolean).pop() || "unknown")
   if (current.includes(`- Lição: ${suggestion.lesson}`)) return { path, entry: null }
-  await writeFile(path, `${current.trimEnd()}${current ? "\n\n" : ""}${entry}`, "utf8")
+  const updated = `${current.trimEnd()}${current ? "\n\n" : ""}${entry}`
+  await writeFile(path, compactContent(updated), "utf8")
   return { path, entry }
+}
+
+function recentSection(category: Category, content: string, budget: number) {
+  const recent = entries(content).reverse()
+  const kept: string[] = []
+  let size = `### ${category}\n`.length
+  for (const entry of recent) {
+    if (size + entry.text.length + 2 > budget) break
+    kept.unshift(entry.text)
+    size += entry.text.length + 2
+  }
+  return kept.length ? `### ${category}\n${kept.join("\n\n")}` : ""
 }
 
 export async function loadMemoryFiles(directory: string, home?: string) {
   const paths = memoryPaths(directory, home)
+  const perCategoryBudget = Math.floor(MAX_CONTEXT_CHARS / categories.length)
   const sections = await Promise.all(
     categories.map(async (category) => {
       const content = await readFile(fileFor(category, paths), "utf8").catch(() => "")
-      return content.trim() ? `### ${category}\n${content.trim()}` : ""
+      return recentSection(category, content, perCategoryBudget)
     }),
   )
-  return sections.filter(Boolean).join("\n\n").slice(0, 12000)
+  return sections.filter(Boolean).join("\n\n").slice(-MAX_CONTEXT_CHARS)
+}
+
+function normalizeText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+}
+
+export function removalQuery(text: string) {
+  return normalizeText(text)
+    .replace(/\b(remova|remover|apague|apagar|exclua|excluir|corrija|corrigir)\b/g, " ")
+    .replace(/\b(essa|esse|isso|a|o|ultima|ultimo|minha|meu|memoria|anotacao|registro|que|esta|errado|sobre)\b/g, " ")
+    .replace(/[^a-z0-9_-]+/g, " ")
+    .trim()
 }
 
 export async function removeLatestMemory(directory: string, query = "", home?: string) {
   const paths = memoryPaths(directory, home)
-  for (const category of categories) {
+  const needle = removalQuery(query)
+  const candidates = await Promise.all(categories.map(async (category) => {
     const path = fileFor(category, paths)
     const content = await readFile(path, "utf8").catch(() => "")
-    const headings = [...content.matchAll(/^## .+$/gm)]
-    const target = [...headings].reverse().find((heading) => {
-      const index = heading.index || 0
-      const next = headings[headings.indexOf(heading) + 1]?.index ?? content.length
-      return content.slice(index, next).toLowerCase().includes(query.toLowerCase())
-    })
-    if (!target || target.index === undefined) continue
-    const next = headings[headings.indexOf(target) + 1]?.index ?? content.length
-    const updated = `${content.slice(0, target.index).trimEnd()}\n${content.slice(next).trimStart()}`.trimStart()
-    await writeFile(path, updated ? `${updated}\n` : "", "utf8")
-    return { path, title: target[0] }
-  }
-  return
+    const modified = await stat(path).then((value) => value.mtimeMs).catch(() => 0)
+    const matches = entries(content).filter((entry) => !needle || normalizeText(entry.text).includes(needle))
+    const target = matches.at(-1)
+    return target ? { path, content, target, modified } : undefined
+  }))
+
+  const target = candidates.filter(Boolean).sort((a, b) => b!.modified - a!.modified)[0]
+  if (!target) return
+  const updated = `${target.content.slice(0, target.target.start).trimEnd()}\n${target.content.slice(target.target.end).trimStart()}`.trimStart()
+  await writeFile(target.path, updated ? `${updated}\n` : "", "utf8")
+  return { path: target.path, title: target.target.title }
 }
 
 export function isRemovalRequest(text: string) {
@@ -134,7 +201,7 @@ export const MarkdownMemory: Plugin = async ({ client, directory }) => {
     },
     "experimental.chat.system.transform": async (_input, output) => {
       const memory = await loadMemoryFiles(directory)
-      output.system.push(`## Markdown Memory\nProject: ${projectName}.\n${memory || "No saved memory exists yet."}\n\nWhen a coding task is completed with validated evidence, append exactly this block after your answer:\nMEMORY_SUGGESTION\ncategory: decisions|troubleshooting|contexto|infos|preferencias|regras\ntitle: short title\nproblem: concise problem or empty\nsolution: concise solution or empty\nlesson: reusable lesson\nEND_MEMORY_SUGGESTION\nDo not include secrets, full transcripts, raw logs, or unverified attempts.`)
+      output.system.push(`## Markdown Memory\nProject: ${projectName}.\n${memory || "No saved memory exists yet."}\n\nWhen a coding task is completed with validated evidence, append exactly one hidden HTML comment after the answer:\n<!-- MEMORY_SUGGESTION\ncategory: decisions|troubleshooting|contexto|infos|preferencias|regras\ntitle: short title\nproblem: concise problem or empty\nsolution: concise solution or empty\nlesson: reusable lesson\nEND_MEMORY_SUGGESTION -->\nNever place this block outside the HTML comment. Do not include secrets, full transcripts, raw logs, or unverified attempts.`)
     },
     event: async ({ event }) => {
       if (event.type !== "session.idle") return
@@ -145,10 +212,10 @@ export const MarkdownMemory: Plugin = async ({ client, directory }) => {
       state.learned = true
 
       if (isRemovalRequest(state.query)) {
-        const removed = await removeLatestMemory(directory)
+        const removed = await removeLatestMemory(directory, state.query)
         await client.tui.showToast({ body: {
           title: "Memória",
-          message: removed ? `Removida de ${removed.path}` : "Nenhuma memória encontrada para remover.",
+          message: removed ? `Removida de ${removed.path}` : "Nenhuma memória correspondente foi encontrada.",
           variant: removed ? "success" : "info",
         } }).catch(() => undefined)
         return
