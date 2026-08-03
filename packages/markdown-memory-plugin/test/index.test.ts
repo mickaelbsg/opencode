@@ -62,7 +62,7 @@ test("removes only the latest contextually matching entry", async () => {
 })
 
 test("normalizes natural-language removal queries", () => {
-  expect(removalQuery("Remova essa memória sobre autenticação")).toBe("sobre autenticacao")
+  expect(removalQuery("Remova essa memória sobre autenticação")).toBe("autenticacao")
   expect(isRemovalRequest("remova essa memória")).toBe(true)
   expect(isRemovalRequest("isso está errado, corrija")).toBe(true)
   expect(isRemovalRequest("continue a implementação")).toBe(false)
