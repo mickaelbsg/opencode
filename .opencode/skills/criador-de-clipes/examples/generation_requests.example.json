@@ -1,0 +1,16 @@
+{
+  "requests": [
+    {
+      "id": "gen_img_001",
+      "timecode": {"start": 64.2, "end": 69.4},
+      "type": "image",
+      "lyric": "somos cinco vidas seguindo lado a lado",
+      "scene_description": "Família com exatamente cinco pessoas reunida, transmitindo união e felicidade",
+      "count_requirements": {"people": 5},
+      "aspect_ratio": "16:9",
+      "visual_style": "cinematográfico, natural, afetivo, luz quente",
+      "avoid": ["pessoas extras", "texto", "marca d'água", "rostos deformados"],
+      "references": []
+    }
+  ]
+}

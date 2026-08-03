@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Plano de edição de videoclipe",
+  "type": "object",
+  "required": [
+    "project",
+    "audio",
+    "duration",
+    "resolution",
+    "fps",
+    "segments"
+  ],
+  "properties": {
+    "project": {
+      "type": "string",
+      "minLength": 1
+    },
+    "audio": {
+      "type": "string",
+      "minLength": 1
+    },
+    "duration": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "resolution": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 320
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 240
+        }
+      },
+      "additionalProperties": false
+    },
+    "fps": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 120
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "source_path",
+          "visual_intent"
+        ],
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "lyric": {
+            "type": "string"
+          },
+          "visual_intent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "asset_id": {
+            "type": "string"
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "crop_mode": {
+            "enum": [
+              "smart_fill",
+              "fit",
+              "blur_background"
+            ]
+          },
+          "motion": {
+            "enum": [
+              "none",
+              "slow_zoom_in",
+              "slow_zoom_out",
+              "pan_left",
+              "pan_right"
+            ]
+          },
+          "transition_in": {
+            "enum": [
+              "cut",
+              "fade"
+            ]
+          },
+          "transition_out": {
+            "enum": [
+              "cut",
+              "fade"
+            ]
+          },
+          "subtitle": {
+            "type": "boolean"
+          },
+          "selection_reason": {
+            "type": "string"
+          },
+          "people_requirements": {
+            "type": "object"
+          },
+          "continuity_key": {
+            "type": "string"
+          },
+          "semantic_confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "watermark_check": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

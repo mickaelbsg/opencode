@@ -1,0 +1,45 @@
+project_name: meu-clipe
+language: pt
+
+output:
+  formats:
+    - name: final_16x9
+      width: 1920
+      height: 1080
+    - name: final_9x16
+      width: 1080
+      height: 1920
+  fps: 30
+  video_codec: libx264
+  audio_codec: aac
+  crf: 18
+  preset: medium
+
+subtitles:
+  enabled: true
+  burn_in: true
+  max_lines: 2
+  safe_margin_percent: 8
+  font_name: DejaVu Sans
+  font_size: 54
+
+analysis:
+  scene_threshold: 27.0
+  video_keyframe_interval_seconds: 3
+  minimum_asset_score: 0.62
+  maximum_preview_cycles: 3
+  preferred_cut_duration_seconds: [2.0, 6.0]
+
+transcription:
+  provider: faster-whisper
+  model: medium
+  device: auto
+  compute_type: auto
+  word_timestamps: true
+
+media_generation:
+  enabled: true
+  prefer_user_assets: true
+  image_provider: adapter
+  video_provider: adapter
+  require_post_generation_analysis: true
