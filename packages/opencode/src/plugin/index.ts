@@ -32,6 +32,7 @@ import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { InstallationChannel } from "@opencode-ai/core/installation/version"
+import { MarkdownMemory } from "@opencode-ai/markdown-memory-plugin"
 
 type State = {
   hooks: Hooks[]
@@ -80,6 +81,7 @@ function internalPlugins(flags: RuntimeFlags.Info): PluginInstance[] {
     DigitalOceanAuthPlugin,
     SnowflakeCortexAuthPlugin,
     XaiAuthPlugin,
+    MarkdownMemory,
   ]
 }
 

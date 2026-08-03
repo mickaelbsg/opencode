@@ -556,6 +556,17 @@
         "@typescript/native-preview": "catalog:",
       },
     },
+    "packages/markdown-memory-plugin": {
+      "name": "@opencode-ai/markdown-memory-plugin",
+      "version": "1.18.11",
+      "dependencies": {
+        "@opencode-ai/plugin": "workspace:*",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+      },
+    },
     "packages/opencode": {
       "name": "opencode",
       "version": "1.18.11",
@@ -597,6 +608,7 @@
         "@openauthjs/openauth": "catalog:",
         "@opencode-ai/codemode": "workspace:*",
         "@opencode-ai/llm": "workspace:*",
+        "@opencode-ai/markdown-memory-plugin": "workspace:*",
         "@opencode-ai/plugin": "workspace:*",
         "@opencode-ai/protocol": "workspace:*",
         "@opencode-ai/schema": "workspace:*",
@@ -1982,6 +1994,8 @@
     "@opencode-ai/httpapi-codegen": ["@opencode-ai/httpapi-codegen@workspace:packages/httpapi-codegen"],
 
     "@opencode-ai/llm": ["@opencode-ai/llm@workspace:packages/llm"],
+
+    "@opencode-ai/markdown-memory-plugin": ["@opencode-ai/markdown-memory-plugin@workspace:packages/markdown-memory-plugin"],
 
     "@opencode-ai/plugin": ["@opencode-ai/plugin@workspace:packages/plugin"],
 
